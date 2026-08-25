@@ -11,8 +11,9 @@
     - <nome>.json           : metadata do image target (schema ImageTargetData, type PLANAR)
     - manifest.json         : indice consumido pelo app
 
-  Usa crop CHEIO (a imagem inteira) e nao o crop 3:4 default do CLI oficial, para que o
-  plano de video cubra exatamente o poster. Ver README.md.
+  Usa o mesmo recorte 3:4 do CLI oficial, produzindo luminancia 480x640. O video ainda
+  cobre o poster inteiro: o app amplia o plano pela razao originalWidth/cropWidth.
+  Ver README.md.
 
 .PARAMETER Full
   Tambem grava <nome>_original.png e <nome>_cropped.png (referencia de autoria, ~70 MB).
@@ -51,10 +52,17 @@ function Resize-Image {
   param(
     [System.Drawing.Image]$Source,
     [int]$TargetHeight,
+    [int]$SrcX = 0,
+    [int]$SrcY = 0,
+    [int]$SrcW = 0,
+    [int]$SrcH = 0,
     [switch]$Gray
   )
 
-  $w = [int][Math]::Round($Source.Width * ($TargetHeight / $Source.Height))
+  if ($SrcW -le 0) { $SrcW = $Source.Width }
+  if ($SrcH -le 0) { $SrcH = $Source.Height }
+
+  $w = [int][Math]::Round($SrcW * ($TargetHeight / $SrcH), [MidpointRounding]::AwayFromZero)
   $h = $TargetHeight
 
   $bmp = New-Object System.Drawing.Bitmap($w, $h, [System.Drawing.Imaging.PixelFormat]::Format24bppRgb)
@@ -81,11 +89,11 @@ function Resize-Image {
       $ia = New-Object System.Drawing.Imaging.ImageAttributes
       $ia.SetColorMatrix($cm)
       try {
-        $g.DrawImage($Source, $rect, 0, 0, $Source.Width, $Source.Height,
+        $g.DrawImage($Source, $rect, $SrcX, $SrcY, $SrcW, $SrcH,
                      [System.Drawing.GraphicsUnit]::Pixel, $ia)
       } finally { $ia.Dispose() }
     } else {
-      $g.DrawImage($Source, $rect, 0, 0, $Source.Width, $Source.Height,
+      $g.DrawImage($Source, $rect, $SrcX, $SrcY, $SrcW, $SrcH,
                    [System.Drawing.GraphicsUnit]::Pixel)
     }
   } finally { $g.Dispose() }
@@ -111,12 +119,32 @@ foreach ($file in $files) {
     $W = $img.Width
     $H = $img.Height
 
-    # Crop cheio: o video precisa cobrir o poster inteiro.
+    # Recorte 3:4, identico ao getDefaultCrop() do CLI oficial (src/crop.js).
+    #
+    # O CLI NUNCA produz outra proporcao: mesmo no modo manual ele recalcula a altura como
+    # width * 4/3. As constantes confirmam a intencao - luminanceHeight 640 com
+    # minimumWidth 480 da exatamente 480x640. Usar o recorte cheio destas imagens 4:5
+    # gerava 512x640, uma proporcao que a ferramenta oficial jamais emite.
+    #
+    # O video cobre o poster inteiro mesmo assim: o app amplia o plano usando a razao
+    # entre originalWidth e a largura do recorte. Ver ar-video-plane em app.js.
+    if (($W / 3) -gt ($H / 4)) {
+      $cropW = [int][Math]::Round($H * 3 / 4, [MidpointRounding]::AwayFromZero)
+      $cropH = $H
+      $cropL = [int][Math]::Round(($W - $cropW) / 2, [MidpointRounding]::AwayFromZero)
+      $cropT = 0
+    } else {
+      $cropW = $W
+      $cropH = [int][Math]::Round($W * 4 / 3, [MidpointRounding]::AwayFromZero)
+      $cropL = 0
+      $cropT = [int][Math]::Round(($H - $cropH) / 2, [MidpointRounding]::AwayFromZero)
+    }
+
     $crop = [ordered]@{
-      left           = 0
-      top            = 0
-      width          = $W
-      height         = $H
+      left           = $cropL
+      top            = $cropT
+      width          = $cropW
+      height         = $cropH
       isRotated      = $false
       originalWidth  = $W
       originalHeight = $H
@@ -124,8 +152,12 @@ foreach ($file in $files) {
 
     # validateCrop() do CLI oficial
     $issues = @()
-    if ($W -lt $MIN_WIDTH)  { $issues += "largura $W < minimo $MIN_WIDTH" }
-    if ($H -lt $MIN_HEIGHT) { $issues += "altura $H < minimo $MIN_HEIGHT" }
+    if ($cropL -lt 0) { $issues += 'left negativo' }
+    if ($cropT -lt 0) { $issues += 'top negativo' }
+    if ($cropW -lt $MIN_WIDTH)  { $issues += "largura $cropW < minimo $MIN_WIDTH" }
+    if ($cropH -lt $MIN_HEIGHT) { $issues += "altura $cropH < minimo $MIN_HEIGHT" }
+    if (($cropT + $cropH) -gt $H) { $issues += "recorte excede a altura ($($cropT + $cropH) > $H)" }
+    if (($cropL + $cropW) -gt $W) { $issues += "recorte excede a largura ($($cropL + $cropW) > $W)" }
     if ($issues.Count -gt 0) {
       throw "$($file.Name): crop invalido -> $($issues -join '; ')"
     }
@@ -135,11 +167,13 @@ foreach ($file in $files) {
       luminanceImage = "${name}_luminance.png"
     }
 
-    $lum = Resize-Image -Source $img -TargetHeight $LUMINANCE_HEIGHT -Gray
+    $lum = Resize-Image -Source $img -TargetHeight $LUMINANCE_HEIGHT `
+                        -SrcX $cropL -SrcY $cropT -SrcW $cropW -SrcH $cropH -Gray
     try   { $lum.Save((Join-Path $OutDir $resources.luminanceImage), [System.Drawing.Imaging.ImageFormat]::Png) }
     finally { $lum.Dispose() }
 
-    $thumb = Resize-Image -Source $img -TargetHeight $THUMBNAIL_HEIGHT
+    $thumb = Resize-Image -Source $img -TargetHeight $THUMBNAIL_HEIGHT `
+                          -SrcX $cropL -SrcY $cropT -SrcW $cropW -SrcH $cropH
     try   { $thumb.Save((Join-Path $OutDir $resources.thumbnailImage), [System.Drawing.Imaging.ImageFormat]::Png) }
     finally { $thumb.Dispose() }
 
@@ -184,9 +218,9 @@ foreach ($file in $files) {
       thumbnail = "image-targets/$($resources.thumbnailImage)"
     }
 
-    $lumW = [int][Math]::Round($W * ($LUMINANCE_HEIGHT / $H))
-    Write-Host ("  {0,-4} {1,5}x{2,-5} -> luminance {3}x{4}  video: {5}" -f `
-      $name, $W, $H, $lumW, $LUMINANCE_HEIGHT, $(if ($videoPath) { Split-Path $videoPath -Leaf } else { '--' }))
+    $lumW = [int][Math]::Round($cropW * ($LUMINANCE_HEIGHT / $cropH), [MidpointRounding]::AwayFromZero)
+    Write-Host ("  {0,-4} {1}x{2} -> crop {3}x{4} @{5},{6} -> lum {7}x{8}  video: {9}" -f `
+      $name, $W, $H, $cropW, $cropH, $cropL, $cropT, $lumW, $LUMINANCE_HEIGHT, $(if ($videoPath) { Split-Path $videoPath -Leaf } else { '--' }))
   }
   finally { $img.Dispose() }
 }

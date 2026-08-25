@@ -159,6 +159,11 @@
   AFRAME.registerComponent('ar-video-plane', {
     schema: {
       video: {type: 'selector'},
+      // Quanto ampliar o plano em relacao ao alvo rastreado. O alvo e o recorte 3:4
+      // central do poster (exigencia do formato do engine), mas o video e o poster 4:5
+      // inteiro - sem isso, o video apareceria recortado nas laterais.
+      coverWidth: {type: 'number', default: 1},
+      coverHeight: {type: 'number', default: 1},
     },
 
     init: function () {
@@ -193,9 +198,11 @@
     buildMesh: function (geometry) {
       if (this.mesh) return
 
-      // Malha derivada da geometria real do alvo: como o crop cobre a imagem inteira,
-      // o plano bate pixel a pixel com o poster impresso.
-      var geo = XRExtras.ThreeExtras.createTargetGeometry(geometry, false)
+      // Malha derivada da geometria real que o engine reporta para o alvo, ampliada para
+      // cobrir o poster inteiro (o alvo e apenas o recorte 3:4 central).
+      var geo = XRExtras.ThreeExtras.createTargetGeometry(
+        geometry, false, this.data.coverHeight, this.data.coverWidth
+      )
       if (!geo) {
         console.warn('[RA CYF] geometria de alvo nao suportada:', geometry && geometry.type)
         return
@@ -301,9 +308,15 @@
       var anchor = document.createElement('a-entity')
       anchor.setAttribute('xrextras-named-image-target', 'name: ' + target.name)
 
+      // Razao entre o poster inteiro e o recorte rastreado, para o video cobrir a arte toda.
+      var props = target.properties || {}
+      var coverW = (props.originalWidth && props.width) ? props.originalWidth / props.width : 1
+      var coverH = (props.originalHeight && props.height) ? props.originalHeight / props.height : 1
+
       var plane = document.createElement('a-entity')
       plane.dataset.targetName = target.name
-      plane.setAttribute('ar-video-plane', 'video: #' + video.id)
+      plane.setAttribute('ar-video-plane',
+        'video: #' + video.id + '; coverWidth: ' + coverW + '; coverHeight: ' + coverH)
 
       anchor.appendChild(plane)
       root.appendChild(anchor)
