@@ -523,7 +523,14 @@
   window.addEventListener('camerastatuschange', function (evt) {
     var st = evt.detail && evt.detail.status
     step('camerastatuschange: ' + st)
-    if (st === 'hasStream') started = true
+    if (st !== 'hasStream') return
+
+    started = true
+    // Se a camera engatou depois do aviso de demora, o aviso some: ele cobre a tela
+    // inteira e nao pode ficar bloqueando uma experiencia que passou a funcionar.
+    pendingFatal = null
+    var box = document.getElementById('fatal')
+    if (box) box.hidden = true
   })
   document.addEventListener('DOMContentLoaded', function () {
     var scene = document.querySelector('a-scene')
@@ -563,6 +570,9 @@
     })
   })
 
+  // 45s, nao 20: o primeiro acesso baixa o chunk de 5,4 MB do engine mais as imagens dos
+  // alvos, e numa rede movel lenta isso passa facil de 20 segundos. Um aviso que aparece
+  // enquanto a experiencia ainda esta carregando transforma lentidao em falha aparente.
   setTimeout(function () {
     if (started) return
     var scene = document.querySelector('a-scene')
@@ -576,9 +586,9 @@
       'cena carregada=' + !!(scene && scene.hasLoaded),
     ].join(' | ')
 
-    step('DIAGNOSTICO 20s: ' + state, true)
-    fatal(new Error('A câmera não iniciou. Estado: ' + state))
-  }, 20000)
+    step('DIAGNOSTICO 45s: ' + state, true)
+    fatal(new Error('A câmera está demorando a iniciar. Estado: ' + state))
+  }, 45000)
 
   if (window.XR8) onXrLoaded()
   else window.addEventListener('xrloaded', onXrLoaded)

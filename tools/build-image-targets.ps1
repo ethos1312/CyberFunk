@@ -30,6 +30,46 @@ param(
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 
+# A luminancia e cinza, mas o System.Drawing so desenha em 24bpp - tres bytes por pixel
+# para guardar um valor repetido. Converter para 8bpp indexado com paleta cinza corta o
+# arquivo a um terco, o que importa: sao 18 imagens que o engine baixa antes de comecar
+# a rastrear. Em C# porque o laco por pixel em PowerShell levaria minutos.
+Add-Type -TypeDefinition @'
+using System;
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.Runtime.InteropServices;
+
+public static class Gray8 {
+  public static Bitmap From24bpp(Bitmap src) {
+    int w = src.Width, h = src.Height;
+    Bitmap dst = new Bitmap(w, h, PixelFormat.Format8bppIndexed);
+
+    ColorPalette pal = dst.Palette;
+    for (int i = 0; i < 256; i++) pal.Entries[i] = Color.FromArgb(255, i, i, i);
+    dst.Palette = pal;
+
+    Rectangle r = new Rectangle(0, 0, w, h);
+    BitmapData sd = src.LockBits(r, ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
+    BitmapData dd = dst.LockBits(r, ImageLockMode.WriteOnly, PixelFormat.Format8bppIndexed);
+    try {
+      byte[] srow = new byte[sd.Stride];
+      byte[] drow = new byte[dd.Stride];
+      for (int y = 0; y < h; y++) {
+        Marshal.Copy(IntPtr.Add(sd.Scan0, y * sd.Stride), srow, 0, sd.Stride);
+        // Ja esta em cinza, entao B == G == R: basta um canal.
+        for (int x = 0; x < w; x++) drow[x] = srow[x * 3];
+        Marshal.Copy(drow, 0, IntPtr.Add(dd.Scan0, y * dd.Stride), dd.Stride);
+      }
+    } finally {
+      src.UnlockBits(sd);
+      dst.UnlockBits(dd);
+    }
+    return dst;
+  }
+}
+'@ -ReferencedAssemblies System.Drawing
+
 # Constantes do image-target-cli (src/constants.json)
 $MIN_WIDTH        = 480
 $MIN_HEIGHT       = 640
@@ -201,8 +241,11 @@ foreach ($file in $files) {
 
     $lum = Resize-Image -Source $img -TargetHeight $LUMINANCE_HEIGHT `
                         -SrcX $cropL -SrcY $cropT -SrcW $cropW -SrcH $cropH -Gray
-    try   { $lum.Save((Join-Path $OutDir $resources.luminanceImage), [System.Drawing.Imaging.ImageFormat]::Png) }
-    finally { $lum.Dispose() }
+    try {
+      $lum8 = [Gray8]::From24bpp($lum)
+      try   { $lum8.Save((Join-Path $OutDir $resources.luminanceImage), [System.Drawing.Imaging.ImageFormat]::Png) }
+      finally { $lum8.Dispose() }
+    } finally { $lum.Dispose() }
 
     $thumb = Resize-Image -Source $img -TargetHeight $THUMBNAIL_HEIGHT `
                           -SrcX $cropL -SrcY $cropT -SrcW $cropW -SrcH $cropH
