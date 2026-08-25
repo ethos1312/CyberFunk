@@ -16,6 +16,42 @@
   var TARGETS_DIR = 'image-targets'
   var FADE_MS = 450
 
+  // ---------------------------------------------------------------- rastro de execucao
+  //
+  // Falhas aqui sao silenciosas por natureza: o A-Frame ignora componentes desconhecidos
+  // sem avisar, e a tela de carregamento cobre a pagina inteira. Abrir com ?debug mostra
+  // cada passo na tela - no celular nao ha console acessivel.
+
+  var DEBUG = location.search.indexOf('debug') >= 0
+  var stepsEl = null
+
+  function step(msg, isError) {
+    var line = '[RA CYF] ' + msg
+    if (isError) console.error(line)
+    else console.log(line)
+
+    if (!DEBUG && !isError) return
+
+    if (!stepsEl) {
+      stepsEl = document.createElement('pre')
+      stepsEl.className = 'steps'
+      ;(document.body || document.documentElement).appendChild(stepsEl)
+    }
+    var row = document.createElement('div')
+    if (isError) row.className = 'err'
+    row.textContent = msg
+    stepsEl.appendChild(row)
+  }
+
+  window.addEventListener('error', function (e) {
+    step('ERRO: ' + e.message + ' @ ' + (e.filename || '?') + ':' + (e.lineno || '?'), true)
+  })
+  window.addEventListener('unhandledrejection', function (e) {
+    step('PROMISE REJEITADA: ' + ((e.reason && e.reason.message) || e.reason), true)
+  })
+
+  step('app.js iniciado')
+
   // ---------------------------------------------------------------- carregamento
 
   // Carregado uma vez e compartilhado entre a config do XR8 e a montagem da cena.
@@ -308,44 +344,79 @@
   // o A-Frame nunca o instanciou. Reaplicar o atributo agora o forca a inicializar.
   function activateScene() {
     var scene = document.querySelector('a-scene')
-    if (!scene) return
-    var config = scene.getAttribute('xrweb') || 'disableWorldTracking: true'
-    if (typeof config !== 'string') config = 'disableWorldTracking: true'
-    scene.removeAttribute('xrweb')
-    scene.setAttribute('xrweb', config)
-    console.log('[RA CYF] xrweb ativado.')
+    if (!scene) { step('a-scene nao encontrada', true); return }
+    step('a-camera no DOM: ' + document.getElementsByTagName('a-camera').length)
+
+    try {
+      scene.removeAttribute('xrweb')
+      scene.setAttribute('xrweb', 'disableWorldTracking: true')
+      step('xrweb aplicado; instanciado=' + !!(scene.components && scene.components.xrweb))
+    } catch (err) {
+      fatal(err)
+    }
   }
 
   function onXrLoaded() {
+    step('xrloaded (engine pronto)')
+
     try {
       if (!registerEngineComponents()) {
         throw new Error('XR8.AFrame indisponivel apos o carregamento do engine.')
       }
+      step('componentes registrados (xrweb=' + !!AFRAME.components.xrweb + ')')
     } catch (err) {
       fatal(err)
       return
     }
 
     targetsPromise.then(function (targets) {
-      // Substitui o conjunto ativo de alvos pelo nosso.
-      XR8.XrController.configure({imageTargetData: targets})
-      console.log('[RA CYF] engine configurado com ' + targets.length + ' image targets.')
+      // Substitui o conjunto ativo de alvos pelo nosso. Se falhar, a cena ainda precisa
+      // iniciar - sem camera nao ha o que depurar.
+      try {
+        XR8.XrController.configure({imageTargetData: targets})
+        step('engine configurado com ' + targets.length + ' image targets')
+      } catch (err) {
+        step('configure() falhou: ' + err.message, true)
+      }
       activateScene()
-    }).catch(function () { /* ja tratado em fatal() */ })
+    }).catch(function (err) {
+      step('alvos indisponiveis: ' + err.message, true)
+      // Sem alvos nao ha RA, mas iniciar a camera revela se o problema e outro.
+      activateScene()
+    })
   }
 
-  // Rede de seguranca: se a camera nao iniciar, mostra o motivo em vez de girar para sempre.
+  // Rede de seguranca: se a camera nao iniciar, mostra o estado em vez de girar para sempre.
   var started = false
   window.addEventListener('camerastatuschange', function (evt) {
-    if (evt.detail && evt.detail.status === 'hasStream') started = true
+    var st = evt.detail && evt.detail.status
+    step('camerastatuschange: ' + st)
+    if (st === 'hasStream') started = true
   })
+  document.addEventListener('DOMContentLoaded', function () {
+    var scene = document.querySelector('a-scene')
+    if (scene) {
+      scene.addEventListener('realityerror', function (e) {
+        step('realityerror: ' + JSON.stringify(e.detail && e.detail.compatibility), true)
+      })
+    }
+  })
+
   setTimeout(function () {
     if (started) return
-    var reasons = []
-    if (!window.XR8) reasons.push('o engine (XR8) nao carregou - verifique a rede ou um bloqueador')
-    else if (!AFRAME.components.xrweb) reasons.push('o componente xrweb nao foi registrado')
-    else reasons.push('a camera nao iniciou - permissao negada ou indisponivel')
-    fatal(new Error(reasons.join('; ')))
+    var scene = document.querySelector('a-scene')
+    var state = [
+      'XR8=' + !!window.XR8,
+      'XrController=' + !!(window.XR8 && XR8.XrController),
+      'xrweb registrado=' + !!(window.AFRAME && AFRAME.components.xrweb),
+      'xrweb na cena=' + !!(scene && scene.components && scene.components.xrweb),
+      'xrconfig na cena=' + !!(scene && scene.components && scene.components.xrconfig),
+      'a-camera=' + document.getElementsByTagName('a-camera').length,
+      'cena carregada=' + !!(scene && scene.hasLoaded),
+    ].join(' | ')
+
+    step('DIAGNOSTICO 20s: ' + state, true)
+    fatal(new Error('A câmera não iniciou. Estado: ' + state))
   }, 20000)
 
   if (window.XR8) onXrLoaded()

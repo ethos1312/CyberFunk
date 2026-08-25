@@ -146,10 +146,12 @@ html, body {
 
 /* ---------------------------------------------------------------- erro fatal */
 
+/* z-index maximo: a tela de carregamento do XRExtras cobre a pagina inteira, e um erro
+   escondido atras dela e pior do que nenhum erro. */
 .fatal {
   position: fixed;
   inset: 0;
-  z-index: 20;
+  z-index: 2147483647;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -160,3 +162,26 @@ html, body {
   font-size: 15px;
   line-height: 1.5;
 }
+
+/* ---------------------------------------------------------------- passo a passo (?debug) */
+
+.steps {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: 2147483646;
+  max-height: 55vh;
+  overflow-y: auto;
+  margin: 0;
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, .82);
+  color: #4ade80;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.steps .err { color: #f87171; }
