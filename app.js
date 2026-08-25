@@ -356,30 +356,68 @@
   function registerEngineComponents() {
     if (!window.AFRAME || !window.XR8 || !XR8.AFrame) return false
 
-    if (!AFRAME.components.xrweb) {
-      AFRAME.registerComponent('xrconfig', XR8.AFrame.xrconfigComponent())
-      AFRAME.registerComponent('xrweb', XR8.AFrame.xrwebComponent())
-      AFRAME.registerComponent('xrface', XR8.AFrame.xrfaceComponent())
+    // O 8frame tolera o re-registro de 'xrweb' com um aviso, mas 'xrconfig' e 'xrface'
+    // ainda lancam erro. Como o XRExtras tambem registra os tres quando o engine carrega,
+    // cada um e verificado antes.
+    function ensure(name, factory) {
+      if (AFRAME.components[name]) return
+      try {
+        AFRAME.registerComponent(name, factory())
+      } catch (err) {
+        step('registro de ' + name + ' ignorado: ' + err.message)
+      }
     }
 
+    ensure('xrconfig', function () { return XR8.AFrame.xrconfigComponent() })
+    ensure('xrweb', function () { return XR8.AFrame.xrwebComponent() })
+    ensure('xrface', function () { return XR8.AFrame.xrfaceComponent() })
+
     if (window.XRExtras && XRExtras.AFrame) {
-      XRExtras.AFrame.registerXrExtrasComponents()
+      try {
+        XRExtras.AFrame.registerXrExtrasComponents()
+      } catch (err) {
+        step('registerXrExtrasComponents: ' + err.message)
+      }
     }
 
     return true
   }
 
-  // A cena ja existia no DOM quando 'xrweb' ainda nao era um componente conhecido, entao
-  // o A-Frame nunca o instanciou. Reaplicar o atributo agora o forca a inicializar.
+  /**
+   * Garante que o xrweb esteja ativo - sem nunca inicializa-lo duas vezes.
+   *
+   * Se o componente ja estava registrado quando o A-Frame montou a cena, ele inicializa
+   * sozinho e nao ha nada a fazer. Reaplicar o atributo nesse caso e destrutivo: o
+   * removeAttribute dispara o remove() do xrweb, que por sua vez remove o xrconfig e
+   * chama XR8.stop(); o setAttribute seguinte reinicializa e tenta
+   * configure({scale}) - que o engine rejeita depois que XR8.run() ja aconteceu
+   * ("Scale can only be changed before calling XR8.run()").
+   *
+   * So forcamos quando o A-Frame realmente ignorou o atributo, que e o caso em que o
+   * componente foi registrado tarde demais.
+   */
   function activateScene() {
     var scene = document.querySelector('a-scene')
     if (!scene) { step('a-scene nao encontrada', true); return }
-    step('a-camera no DOM: ' + document.getElementsByTagName('a-camera').length)
 
+    // Antes do 'loaded' a cena ainda pode instanciar o xrweb por conta propria; decidir
+    // agora arriscaria a inicializacao dupla.
+    if (!scene.hasLoaded) {
+      step('aguardando a cena carregar')
+      scene.addEventListener('loaded', function () { activateScene() }, {once: true})
+      return
+    }
+
+    if (scene.components && scene.components.xrweb) {
+      step('xrweb ja ativo - nada a fazer')
+      return
+    }
+
+    step('xrweb foi ignorado pelo A-Frame; reaplicando')
     try {
       scene.removeAttribute('xrweb')
       scene.setAttribute('xrweb', 'disableWorldTracking: true')
-      step('xrweb aplicado; instanciado=' + !!(scene.components && scene.components.xrweb))
+      step('xrweb reaplicado; instanciado=' + !!(scene.components && scene.components.xrweb))
     } catch (err) {
       fatal(err)
     }
