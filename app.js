@@ -24,6 +24,27 @@
 
   var DEBUG = location.search.indexOf('debug') >= 0
   var stepsEl = null
+  var stepBuffer = []
+
+  // Este script roda dentro do <head>, quando document.body ainda nao existe. Inserir
+  // qualquer no em <html> nesse momento corrompe o parsing do restante do documento -
+  // inclusive o <a-scene>. Por isso as mensagens ficam em buffer e so vao para o DOM
+  // quando o body existir.
+  function flushSteps() {
+    if (!document.body) return
+    if (!stepsEl) {
+      stepsEl = document.createElement('pre')
+      stepsEl.className = 'steps'
+      document.body.appendChild(stepsEl)
+    }
+    while (stepBuffer.length) {
+      var item = stepBuffer.shift()
+      var row = document.createElement('div')
+      if (item.err) row.className = 'err'
+      row.textContent = item.msg
+      stepsEl.appendChild(row)
+    }
+  }
 
   function step(msg, isError) {
     var line = '[RA CYF] ' + msg
@@ -32,16 +53,11 @@
 
     if (!DEBUG && !isError) return
 
-    if (!stepsEl) {
-      stepsEl = document.createElement('pre')
-      stepsEl.className = 'steps'
-      ;(document.body || document.documentElement).appendChild(stepsEl)
-    }
-    var row = document.createElement('div')
-    if (isError) row.className = 'err'
-    row.textContent = msg
-    stepsEl.appendChild(row)
+    stepBuffer.push({msg: msg, err: !!isError})
+    flushSteps()
   }
+
+  document.addEventListener('DOMContentLoaded', flushSteps)
 
   window.addEventListener('error', function (e) {
     step('ERRO: ' + e.message + ' @ ' + (e.filename || '?') + ':' + (e.lineno || '?'), true)
@@ -81,15 +97,28 @@
 
   targetsPromise.catch(function (err) { fatal(err) })
 
-  function fatal(err) {
-    console.error('[RA CYF]', err)
+  var pendingFatal = null
+
+  function showFatal() {
+    if (!pendingFatal) return
     var box = document.getElementById('fatal')
     var msg = document.getElementById('fatal-msg')
-    if (box && msg) {
-      msg.textContent = 'Não foi possível carregar a experiência: ' + err.message
-      box.hidden = false
-    }
+    // Antes do parse do body esses elementos ainda nao existem; tentamos de novo no
+    // DOMContentLoaded em vez de perder a mensagem.
+    if (!box || !msg) return
+    msg.textContent = 'Não foi possível carregar a experiência: ' + pendingFatal
+    box.hidden = false
   }
+
+  function fatal(err) {
+    var text = (err && err.message) || String(err)
+    console.error('[RA CYF]', err)
+    step('FATAL: ' + text, true)
+    pendingFatal = text
+    showFatal()
+  }
+
+  document.addEventListener('DOMContentLoaded', showFatal)
 
   // ---------------------------------------------------------------- estado do som
 
