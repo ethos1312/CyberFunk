@@ -279,13 +279,74 @@
     }).catch(function () { /* ja tratado em fatal() */ })
   })
 
+  /**
+   * Registra os componentes A-Frame do engine.
+   *
+   * O 8th Wall hospedado (apps.8thwall.com/xrweb) registrava 'xrweb' sozinho ao carregar.
+   * A distribuicao self-hosted nao faz isso: ela apenas expoe as fabricas em XR8.AFrame e
+   * espera que a aplicacao registre. Sem isto, <a-scene xrweb> vira um atributo inerte -
+   * o A-Frame ignora componentes desconhecidos sem reclamar -, XR8.run() nunca roda, e a
+   * tela de carregamento gira eternamente esperando uma textura de camera que nao vem.
+   */
+  function registerEngineComponents() {
+    if (!window.AFRAME || !window.XR8 || !XR8.AFrame) return false
+
+    if (!AFRAME.components.xrweb) {
+      AFRAME.registerComponent('xrconfig', XR8.AFrame.xrconfigComponent())
+      AFRAME.registerComponent('xrweb', XR8.AFrame.xrwebComponent())
+      AFRAME.registerComponent('xrface', XR8.AFrame.xrfaceComponent())
+    }
+
+    if (window.XRExtras && XRExtras.AFrame) {
+      XRExtras.AFrame.registerXrExtrasComponents()
+    }
+
+    return true
+  }
+
+  // A cena ja existia no DOM quando 'xrweb' ainda nao era um componente conhecido, entao
+  // o A-Frame nunca o instanciou. Reaplicar o atributo agora o forca a inicializar.
+  function activateScene() {
+    var scene = document.querySelector('a-scene')
+    if (!scene) return
+    var config = scene.getAttribute('xrweb') || 'disableWorldTracking: true'
+    if (typeof config !== 'string') config = 'disableWorldTracking: true'
+    scene.removeAttribute('xrweb')
+    scene.setAttribute('xrweb', config)
+    console.log('[RA CYF] xrweb ativado.')
+  }
+
   function onXrLoaded() {
+    try {
+      if (!registerEngineComponents()) {
+        throw new Error('XR8.AFrame indisponivel apos o carregamento do engine.')
+      }
+    } catch (err) {
+      fatal(err)
+      return
+    }
+
     targetsPromise.then(function (targets) {
       // Substitui o conjunto ativo de alvos pelo nosso.
       XR8.XrController.configure({imageTargetData: targets})
       console.log('[RA CYF] engine configurado com ' + targets.length + ' image targets.')
+      activateScene()
     }).catch(function () { /* ja tratado em fatal() */ })
   }
+
+  // Rede de seguranca: se a camera nao iniciar, mostra o motivo em vez de girar para sempre.
+  var started = false
+  window.addEventListener('camerastatuschange', function (evt) {
+    if (evt.detail && evt.detail.status === 'hasStream') started = true
+  })
+  setTimeout(function () {
+    if (started) return
+    var reasons = []
+    if (!window.XR8) reasons.push('o engine (XR8) nao carregou - verifique a rede ou um bloqueador')
+    else if (!AFRAME.components.xrweb) reasons.push('o componente xrweb nao foi registrado')
+    else reasons.push('a camera nao iniciou - permissao negada ou indisponivel')
+    fatal(new Error(reasons.join('; ')))
+  }, 20000)
 
   if (window.XR8) onXrLoaded()
   else window.addEventListener('xrloaded', onXrLoaded)

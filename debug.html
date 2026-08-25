@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RA CYF — diagnóstico</title>
+  <style>
+    body { margin: 0; padding: 16px; background: #0d0d12; color: #e8e8ec;
+           font: 13px/1.5 ui-monospace, "Cascadia Code", Consolas, monospace; }
+    h1 { font-size: 15px; margin: 0 0 14px; }
+    .row { display: flex; gap: 8px; padding: 5px 0; border-bottom: 1px solid #22222c; }
+    .row b { flex: none; width: 190px; color: #9a9aa8; font-weight: 400; }
+    .ok { color: #4ade80; } .bad { color: #f87171; } .warn { color: #fbbf24; }
+    pre { white-space: pre-wrap; word-break: break-word; margin: 10px 0 0;
+          color: #f87171; font-size: 12px; }
+    button { margin-top: 18px; padding: 11px 18px; border: 0; border-radius: 8px;
+             background: #ff5a1f; color: #fff; font: inherit; font-size: 14px; }
+  </style>
+
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@8thwall/xrextras@1/dist/xrextras.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@8thwall/engine-binary@1/dist/xr.js" async crossorigin="anonymous"
+          data-preload-chunks="slam"></script>
+</head>
+
+<body>
+  <h1>RA CYF — diagnóstico</h1>
+  <div id="out"></div>
+  <pre id="errors"></pre>
+  <button id="cam" type="button">Testar permissão de câmera</button>
+
+  <script>
+    var out = document.getElementById('out')
+    var errors = document.getElementById('errors')
+
+    function row(label, value, state) {
+      var d = document.createElement('div')
+      d.className = 'row'
+      d.innerHTML = '<b>' + label + '</b><span class="' + (state || '') + '">' + value + '</span>'
+      out.appendChild(d)
+    }
+
+    window.addEventListener('error', function (e) {
+      errors.textContent += 'ERRO: ' + e.message + '\n  em ' + e.filename + ':' + e.lineno + '\n'
+    })
+    window.addEventListener('unhandledrejection', function (e) {
+      errors.textContent += 'PROMISE REJEITADA: ' + (e.reason && e.reason.message || e.reason) + '\n'
+    })
+
+    function yn(v) { return v ? ['sim', 'ok'] : ['NAO', 'bad'] }
+
+    function report() {
+      out.innerHTML = ''
+      row('URL', location.href)
+      row('Origem segura', yn(window.isSecureContext)[0], yn(window.isSecureContext)[1])
+      row('mediaDevices', yn(!!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia))[0],
+          yn(!!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia))[1])
+      row('WebAssembly', yn(!!window.WebAssembly)[0], yn(!!window.WebAssembly)[1])
+      row('AFRAME', window.AFRAME ? AFRAME.version : 'ausente', window.AFRAME ? 'ok' : 'bad')
+      row('XRExtras', yn(!!window.XRExtras)[0], yn(!!window.XRExtras)[1])
+      row('XR8 carregado', yn(!!window.XR8)[0], yn(!!window.XR8)[1])
+
+      if (window.XR8) {
+        row('XR8.AFrame', yn(!!XR8.AFrame)[0], yn(!!XR8.AFrame)[1])
+        row('XR8.XrController', yn(!!XR8.XrController)[0], yn(!!XR8.XrController)[1])
+        try {
+          var c = XR8.XrDevice.isDeviceBrowserCompatible()
+          row('Navegador compatível', yn(c)[0], yn(c)[1])
+          if (!c) {
+            var r = XR8.XrDevice.incompatibleReasons ? XR8.XrDevice.incompatibleReasons() : []
+            row('Motivos', JSON.stringify(r), 'bad')
+          }
+        } catch (err) { row('Compatibilidade', err.message, 'bad') }
+      }
+
+      var reg = !!(window.AFRAME && AFRAME.components.xrweb)
+      row('xrweb REGISTRADO', yn(reg)[0], yn(reg)[1])
+      if (!reg && window.XR8) {
+        row('→ diagnóstico', 'esta é a causa da tela travada', 'warn')
+      }
+
+      row('manifest.json', 'testando...', 'warn')
+      fetch('image-targets/manifest.json')
+        .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)) })
+        .then(function (m) { row('manifest.json', m.targets.length + ' alvos', 'ok') })
+        .catch(function (e) { row('manifest.json', e.message, 'bad') })
+    }
+
+    document.getElementById('cam').addEventListener('click', function () {
+      navigator.mediaDevices.getUserMedia({video: {facingMode: 'environment'}})
+        .then(function (s) {
+          row('Permissão de câmera', 'CONCEDIDA', 'ok')
+          s.getTracks().forEach(function (t) { t.stop() })
+        })
+        .catch(function (e) { row('Permissão de câmera', e.name + ': ' + e.message, 'bad') })
+    })
+
+    report()
+    if (window.XR8) report()
+    else window.addEventListener('xrloaded', function () { report() })
+    // Se o engine nunca carregar, o relatório abaixo mostra em que ponto parou.
+    setTimeout(report, 12000)
+  </script>
+</body>
+
+</html>
