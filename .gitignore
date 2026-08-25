@@ -1,0 +1,13 @@
+# Saida intermediaria do tools/optimize-videos.ps1
+video-optimized/
+video-original/
+
+# Referencias de autoria geradas por build-image-targets.ps1 -Full.
+# Nao sao usadas em runtime e pesam ~70 MB.
+image-targets/*_original.*
+image-targets/*_cropped.*
+
+# Sistema
+Thumbs.db
+desktop.ini
+.DS_Store

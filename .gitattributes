@@ -1,0 +1,13 @@
+# Normaliza quebras de linha no repositorio; no disco cada SO usa a sua.
+* text=auto
+
+*.ps1  text eol=crlf
+*.js   text eol=lf
+*.css  text eol=lf
+*.html text eol=lf
+*.json text eol=lf
+*.md   text eol=lf
+
+*.png binary
+*.jpg binary
+*.mp4 binary

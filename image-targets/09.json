@@ -1,0 +1,23 @@
+{
+    "type":  "PLANAR",
+    "properties":  {
+                       "left":  0,
+                       "top":  0,
+                       "width":  2160,
+                       "height":  2700,
+                       "isRotated":  false,
+                       "originalWidth":  2160,
+                       "originalHeight":  2700
+                   },
+    "imagePath":  "image-targets/09_luminance.png",
+    "metadata":  {
+                     "video":  "video/09.mp4"
+                 },
+    "name":  "09",
+    "resources":  {
+                      "thumbnailImage":  "09_thumbnail.png",
+                      "luminanceImage":  "09_luminance.png"
+                  },
+    "created":  1787664597874,
+    "updated":  1787664597874
+}

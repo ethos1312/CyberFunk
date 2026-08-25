@@ -1,0 +1,95 @@
+{
+    "generated":  1787664597874,
+    "targets":  [
+                    {
+                        "name":  "01",
+                        "video":  "video/01.mp4",
+                        "thumbnail":  "image-targets/01_thumbnail.png"
+                    },
+                    {
+                        "name":  "02",
+                        "video":  "video/02.mp4",
+                        "thumbnail":  "image-targets/02_thumbnail.png"
+                    },
+                    {
+                        "name":  "03",
+                        "video":  "video/03.mp4",
+                        "thumbnail":  "image-targets/03_thumbnail.png"
+                    },
+                    {
+                        "name":  "04",
+                        "video":  "video/04.mp4",
+                        "thumbnail":  "image-targets/04_thumbnail.png"
+                    },
+                    {
+                        "name":  "05",
+                        "video":  "video/05.mp4",
+                        "thumbnail":  "image-targets/05_thumbnail.png"
+                    },
+                    {
+                        "name":  "06",
+                        "video":  "video/06.mp4",
+                        "thumbnail":  "image-targets/06_thumbnail.png"
+                    },
+                    {
+                        "name":  "07",
+                        "video":  "video/07.mp4",
+                        "thumbnail":  "image-targets/07_thumbnail.png"
+                    },
+                    {
+                        "name":  "08",
+                        "video":  "video/08.mp4",
+                        "thumbnail":  "image-targets/08_thumbnail.png"
+                    },
+                    {
+                        "name":  "09",
+                        "video":  "video/09.mp4",
+                        "thumbnail":  "image-targets/09_thumbnail.png"
+                    },
+                    {
+                        "name":  "10",
+                        "video":  "video/10.mp4",
+                        "thumbnail":  "image-targets/10_thumbnail.png"
+                    },
+                    {
+                        "name":  "11",
+                        "video":  "video/11.mp4",
+                        "thumbnail":  "image-targets/11_thumbnail.png"
+                    },
+                    {
+                        "name":  "12",
+                        "video":  "video/12.mp4",
+                        "thumbnail":  "image-targets/12_thumbnail.png"
+                    },
+                    {
+                        "name":  "13",
+                        "video":  "video/13.mp4",
+                        "thumbnail":  "image-targets/13_thumbnail.png"
+                    },
+                    {
+                        "name":  "14",
+                        "video":  "video/14.mp4",
+                        "thumbnail":  "image-targets/14_thumbnail.png"
+                    },
+                    {
+                        "name":  "15",
+                        "video":  "video/15.mp4",
+                        "thumbnail":  "image-targets/15_thumbnail.png"
+                    },
+                    {
+                        "name":  "16",
+                        "video":  "video/16.mp4",
+                        "thumbnail":  "image-targets/16_thumbnail.png"
+                    },
+                    {
+                        "name":  "17",
+                        "video":  "video/17.mp4",
+                        "thumbnail":  "image-targets/17_thumbnail.png"
+                    },
+                    {
+                        "name":  "18",
+                        "video":  "video/18.mp4",
+                        "thumbnail":  "image-targets/18_thumbnail.png"
+                    }
+                ]
+}

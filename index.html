@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#0a0a0f">
+  <title>RA CYF</title>
+
+  <link rel="stylesheet" href="styles.css">
+
+  <!-- A-Frame. 1.5.0 e a versao que o 8th Wall espelha no 8frame-1.5.0, entao e a
+       combinacao de menor risco com o XRExtras 1.0.0. -->
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+
+  <!-- XRExtras: loading screen, tratamento de erro e os componentes de image target.
+       MIT - github.com/8thwall/8thwall/tree/main/packages/xrextras -->
+  <script src="https://cdn.jsdelivr.net/npm/@8thwall/xrextras@1/dist/xrextras.js" crossorigin="anonymous"></script>
+
+  <!-- Landing page para navegadores sem suporte a camera/WebGL. -->
+  <script src="https://cdn.jsdelivr.net/npm/@8thwall/landing-page@1/dist/landing-page.js" crossorigin="anonymous"></script>
+
+  <!-- 8th Wall Engine (Distributed Engine Binary). Nao precisa de app key: desde que o
+       8thwall.com foi desligado em 28/02/2026 o engine e distribuido livremente.
+
+       data-preload-chunks="slam" nao e opcional aqui: o xr.js e so o loader, e o
+       rastreamento de image target esta dentro do chunk xr-slam.js. Sem o preload ele
+       so seria baixado quando a camera iniciasse, travando o primeiro reconhecimento. -->
+  <script src="https://cdn.jsdelivr.net/npm/@8thwall/engine-binary@1/dist/xr.js" async crossorigin="anonymous"
+          data-preload-chunks="slam"></script>
+
+  <script src="app.js"></script>
+</head>
+
+<body>
+  <!-- Os <video> ficam fora de <a-assets> de proposito: dentro, o A-Frame bloquearia o
+       carregamento da cena ate baixar todos os arquivos. Com preload="none" cada video so
+       comeca a baixar quando o alvo correspondente e reconhecido. -->
+  <div id="video-pool" aria-hidden="true"></div>
+
+  <a-scene
+    antialias="true"
+    renderer="colorManagement: true; alpha: true"
+    landing-page
+    xrextras-loading
+    xrextras-runtime-error
+    xrweb="disableWorldTracking: true">
+
+    <a-camera position="0 0 0" cursor="rayOrigin: mouse; fuse: false" raycaster="objects: .cantap"></a-camera>
+
+    <!-- As entidades de image target sao criadas por app.js a partir do manifest. -->
+    <a-entity id="targets"></a-entity>
+  </a-scene>
+
+  <!-- ---------- UI ---------- -->
+
+  <div id="scan-hint" class="hint">
+    <div class="hint-frame">
+      <span class="corner tl"></span><span class="corner tr"></span>
+      <span class="corner bl"></span><span class="corner br"></span>
+      <div class="scan-line"></div>
+    </div>
+    <p class="hint-text">Aponte a câmera para a imagem</p>
+  </div>
+
+  <button id="sound-btn" class="sound-btn" type="button" hidden aria-live="polite">
+    <svg class="ico ico-off" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 9v6h4l5 4V5L8 9H4z" />
+      <path d="M17 9l4 6M21 9l-4 6" />
+    </svg>
+    <svg class="ico ico-on" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 9v6h4l5 4V5L8 9H4z" />
+      <path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" />
+    </svg>
+    <span class="sound-label">Toque para o som</span>
+  </button>
+
+  <div id="fatal" class="fatal" hidden>
+    <p id="fatal-msg"></p>
+  </div>
+</body>
+
+</html>
