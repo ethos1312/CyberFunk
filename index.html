@@ -10,9 +10,14 @@
 
   <link rel="stylesheet" href="styles.css">
 
-  <!-- A-Frame. 1.5.0 e a versao que o 8th Wall espelha no 8frame-1.5.0, entao e a
-       combinacao de menor risco com o XRExtras 1.0.0. -->
-  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <!-- 8frame: o fork de A-Frame 1.5.0 mantido pelo 8th Wall.
+       NAO trocar pelo A-Frame padrao. O componente xrconfig faz monkey-patch de
+       renderer.render e controla autoClearColor/autoClearDepth para compor a imagem da
+       camera atras da cena; o A-Frame de baixar do aframe.io nao tem esses ajustes e o
+       resultado e a camera ativa mas a tela preta.
+       Servido do proprio repositorio: o cdn.8thwall.com faz parte da infra que a Niantic
+       esta desligando. -->
+  <script src="vendor/8frame-1.5.0.min.js"></script>
 
   <!-- XRExtras: loading screen, tratamento de erro e os componentes de image target.
        MIT - github.com/8thwall/8thwall/tree/main/packages/xrextras -->
@@ -39,15 +44,17 @@
        comeca a baixar quando o alvo correspondente e reconhecido. -->
   <div id="video-pool" aria-hidden="true"></div>
 
+  <!-- Sem atributo `renderer`: quem controla alpha e autoClear aqui e o xrconfig do
+       engine, e sobrescrever isso deixa a cena opaca por cima da imagem da camera. -->
   <a-scene
     antialias="true"
-    renderer="colorManagement: true; alpha: true"
     landing-page
     xrextras-loading
     xrextras-runtime-error
     xrweb="disableWorldTracking: true">
 
-    <a-camera position="0 0 0" cursor="rayOrigin: mouse; fuse: false" raycaster="objects: .cantap"></a-camera>
+    <!-- Obrigatoria: o xrconfig aborta se nao encontrar uma <a-camera> na cena. -->
+    <a-camera position="0 0 0"></a-camera>
 
     <!-- As entidades de image target sao criadas por app.js a partir do manifest. -->
     <a-entity id="targets"></a-entity>
