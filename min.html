@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>RA CYF — teste mínimo</title>
+
+  <!--
+    Teste de isolamento. Estrutura identica ao exemplo oficial do 8th Wall para A-Frame,
+    sem image targets, sem app.js, sem CSS proprio. Serve para responder uma unica
+    pergunta: a camera abre nesta stack e neste aparelho?
+  -->
+  <script src="vendor/8frame-1.5.0.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@8thwall/xrextras@1/dist/xrextras.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@8thwall/engine-binary@1/dist/xr.js" async crossorigin="anonymous"
+          data-preload-chunks="slam"></script>
+
+  <style>
+    html, body { margin: 0; height: 100%; background: #000; }
+    #log {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 2147483647;
+      max-height: 60vh; overflow-y: auto; margin: 0; padding: 8px 10px;
+      background: rgba(0,0,0,.85); color: #4ade80;
+      font: 11px/1.45 ui-monospace, Consolas, monospace;
+      white-space: pre-wrap; word-break: break-word;
+    }
+    #log .err { color: #f87171; }
+  </style>
+</head>
+
+<body>
+  <pre id="log"></pre>
+
+  <a-scene
+    antialias="true"
+    xrextras-loading
+    xrextras-runtime-error
+    xrweb="disableWorldTracking: true">
+
+    <a-camera position="0 0 0"></a-camera>
+
+    <a-box position="0 0 -3" width="1" height="1" depth="1" color="#ff5a1f"
+           animation="property: rotation; to: 0 360 0; loop: true; dur: 4000; easing: linear">
+    </a-box>
+  </a-scene>
+
+  <script>
+    var logEl = document.getElementById('log')
+    function log(m, bad) {
+      var d = document.createElement('div')
+      if (bad) d.className = 'err'
+      d.textContent = m
+      logEl.appendChild(d)
+      console.log('[min] ' + m)
+    }
+
+    window.addEventListener('error', function (e) {
+      log('ERRO: ' + e.message + ' @ ' + (e.filename || '?') + ':' + (e.lineno || '?'), true)
+    })
+    window.addEventListener('unhandledrejection', function (e) {
+      log('REJEITADA: ' + ((e.reason && e.reason.message) || e.reason), true)
+    })
+
+    log('pagina carregada')
+    log('AFRAME ' + (window.AFRAME ? AFRAME.version : 'ausente'))
+
+    window.addEventListener('xrloaded', function () {
+      log('xrloaded — engine pronto')
+      log('xrweb registrado: ' + !!AFRAME.components.xrweb)
+    })
+
+    window.addEventListener('camerastatuschange', function (e) {
+      log('camera: ' + (e.detail && e.detail.status))
+    })
+
+    var scene = document.querySelector('a-scene')
+    scene.addEventListener('loaded', function () {
+      log('cena carregada; xrweb ativo: ' + !!scene.components.xrweb)
+    })
+    scene.addEventListener('realityready', function () {
+      log('REALITY READY — a camera deveria estar visivel')
+    })
+    scene.addEventListener('realityerror', function (e) {
+      log('realityerror: ' + JSON.stringify(e.detail && e.detail.compatibility), true)
+    })
+
+    setTimeout(function () {
+      log('--- estado aos 15s ---')
+      log('XR8: ' + !!window.XR8 +
+          ' | xrweb reg: ' + !!(window.AFRAME && AFRAME.components.xrweb) +
+          ' | xrweb na cena: ' + !!(scene.components && scene.components.xrweb) +
+          ' | xrconfig na cena: ' + !!(scene.components && scene.components.xrconfig),
+          !(scene.components && scene.components.xrconfig))
+    }, 15000)
+  </script>
+</body>
+
+</html>
