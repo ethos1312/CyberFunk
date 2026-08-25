@@ -337,10 +337,39 @@
 
   // ---------------------------------------------------------------- boot
 
+  // O engine carrega cada imagem de alvo com <img> e descarta o erro silenciosamente se
+  // ela falhar. Aqui a falha fica visivel.
+  function verifyTargetImages(targets) {
+    var pending = targets.length
+    var failed = 0
+
+    targets.forEach(function (target) {
+      var img = new Image()
+      img.crossOrigin = 'anonymous'   // igual ao que o engine usa
+      img.onload = function () {
+        pending--
+        if (img.naturalWidth < 480 || img.naturalHeight < 640) {
+          failed++
+          step('alvo ' + target.name + ' pequeno demais: ' +
+               img.naturalWidth + 'x' + img.naturalHeight, true)
+        }
+        if (!pending) step('imagens de alvo: ' + targets.length + ' ok, ' + failed + ' com problema')
+      }
+      img.onerror = function () {
+        pending--
+        failed++
+        step('FALHOU ao carregar ' + target.imagePath, true)
+        if (!pending) step('imagens de alvo: ' + failed + ' falharam', true)
+      }
+      img.src = target.imagePath
+    })
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
     targetsPromise.then(function (targets) {
       buildScene(targets)
       initSoundButton()
+      if (DEBUG) verifyTargetImages(targets)
     }).catch(function () { /* ja tratado em fatal() */ })
   })
 
@@ -462,11 +491,36 @@
   })
   document.addEventListener('DOMContentLoaded', function () {
     var scene = document.querySelector('a-scene')
-    if (scene) {
-      scene.addEventListener('realityerror', function (e) {
-        step('realityerror: ' + JSON.stringify(e.detail && e.detail.compatibility), true)
-      })
-    }
+    if (!scene) return
+
+    scene.addEventListener('realityerror', function (e) {
+      step('realityerror: ' + JSON.stringify(e.detail && e.detail.compatibility), true)
+    })
+
+    // Eventos do proprio engine. Sao eles que dizem se os alvos foram carregados e se o
+    // scanner esta ativo - sem isso, "nao detecta" pode ser tanto imagem que nao baixou
+    // quanto alvo dificil de reconhecer, e os dois exigem correcoes opostas.
+    scene.addEventListener('xrimageloading', function (e) {
+      var n = (e.detail && e.detail.imageTargets && e.detail.imageTargets.length) || 0
+      step('xrimageloading: ' + n + ' alvos entrando no engine')
+    })
+
+    scene.addEventListener('xrimagescanning', function (e) {
+      var list = (e.detail && e.detail.imageTargets) || []
+      step('xrimagescanning: ' + list.length + ' alvos ATIVOS')
+      if (list.length) {
+        var t = list[0]
+        step('  ex.: ' + t.name + ' tipo=' + t.type +
+             ' ' + JSON.stringify(t.geometry || {}))
+      }
+    })
+
+    scene.addEventListener('xrimagefound', function (e) {
+      step('>>> ENCONTROU: ' + (e.detail && e.detail.name))
+    })
+    scene.addEventListener('xrimagelost', function (e) {
+      step('perdeu: ' + (e.detail && e.detail.name))
+    })
   })
 
   setTimeout(function () {
