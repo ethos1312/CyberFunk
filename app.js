@@ -46,11 +46,23 @@
     }
   }
 
+  // Em modo debug o estado tambem vai para document.title. Isso permite inspecionar a
+  // execucao de fora do navegador (o endpoint /json do DevTools expoe o titulo), que e
+  // como esta experiencia e testada automaticamente com uma camera falsa.
+  var status = {scanning: 0, found: '-', err: 0}
+
+  function publishStatus() {
+    if (!DEBUG) return
+    document.title = 'RA|scan=' + status.scanning + '|found=' + status.found +
+                     '|err=' + status.err
+  }
+
   function step(msg, isError) {
     var line = '[RA CYF] ' + msg
     if (isError) console.error(line)
     else console.log(line)
 
+    if (isError) { status.err++; publishStatus() }
     if (!DEBUG && !isError) return
 
     stepBuffer.push({msg: msg, err: !!isError})
@@ -89,7 +101,18 @@
             // imagePath e consumido pelo engine como URL. Deixar relativo daria margem a
             // ele resolver contra a raiz do dominio, o que quebraria em hospedagens sob
             // subcaminho (ex.: GitHub Pages em /repo/). Resolvemos aqui e nao ha duvida.
-            target.imagePath = new URL(target.imagePath, document.baseURI).href
+            var url = new URL(target.imagePath, document.baseURI)
+
+            // Versiona a imagem pelo timestamp do proprio alvo.
+            //
+            // O JSON e buscado com cache: 'no-cache', mas quem carrega a luminancia e o
+            // engine, com <img> e cache normal do navegador. Sem isto, um JSON novo pode
+            // acabar pareado com um PNG antigo em cache - e como o JSON descreve as
+            // dimensoes do recorte, a incompatibilidade quebra a deteccao por completo,
+            // silenciosamente. Aconteceu ao trocar a luminancia de 512x640 para 480x640.
+            if (target.updated) url.searchParams.set('v', target.updated)
+
+            target.imagePath = url.href
             return target
           })
       }))
@@ -520,6 +543,8 @@
 
     scene.addEventListener('xrimagescanning', function (e) {
       var list = (e.detail && e.detail.imageTargets) || []
+      status.scanning = list.length
+      publishStatus()
       step('xrimagescanning: ' + list.length + ' alvos ATIVOS')
       if (list.length) {
         var t = list[0]
@@ -529,6 +554,8 @@
     })
 
     scene.addEventListener('xrimagefound', function (e) {
+      status.found = (e.detail && e.detail.name) || '?'
+      publishStatus()
       step('>>> ENCONTROU: ' + (e.detail && e.detail.name))
     })
     scene.addEventListener('xrimagelost', function (e) {

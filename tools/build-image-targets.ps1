@@ -65,6 +65,35 @@ function Resize-Image {
   $w = [int][Math]::Round($SrcW * ($TargetHeight / $SrcH), [MidpointRounding]::AwayFromZero)
   $h = $TargetHeight
 
+  # Reduz pela metade ate chegar perto do alvo, antes do redimensionamento final.
+  #
+  # Estas artes sao cheias de reticula de meio-tom. Um salto direto de 2700 para 640 px
+  # com bicubico nao filtra o suficiente: o kernel nao cobre pixels de origem bastante e
+  # a trama vira moire, poluindo justamente as features que o rastreamento usa. Cada
+  # halving faz media de blocos 2x2, agindo como filtro passa-baixa - o resultado se
+  # aproxima do Lanczos3 que o sharp usa no CLI oficial, sem dependencia externa.
+  $stage = $null
+  while (($SrcH / 2) -ge $h -and ($SrcW / 2) -ge $w) {
+    $halfW = [int][Math]::Max(1, [Math]::Floor($SrcW / 2))
+    $halfH = [int][Math]::Max(1, [Math]::Floor($SrcH / 2))
+
+    $next = New-Object System.Drawing.Bitmap($halfW, $halfH, [System.Drawing.Imaging.PixelFormat]::Format24bppRgb)
+    $ng   = [System.Drawing.Graphics]::FromImage($next)
+    try {
+      $ng.InterpolationMode  = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBilinear
+      $ng.PixelOffsetMode    = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+      $ng.CompositingQuality = [System.Drawing.Drawing2D.CompositingQuality]::HighQuality
+      $ng.Clear([System.Drawing.Color]::White)
+      $ng.DrawImage($Source, (New-Object System.Drawing.Rectangle(0, 0, $halfW, $halfH)),
+                    $SrcX, $SrcY, $SrcW, $SrcH, [System.Drawing.GraphicsUnit]::Pixel)
+    } finally { $ng.Dispose() }
+
+    if ($stage) { $stage.Dispose() }
+    $stage = $next
+    $Source = $stage
+    $SrcX = 0; $SrcY = 0; $SrcW = $halfW; $SrcH = $halfH
+  }
+
   $bmp = New-Object System.Drawing.Bitmap($w, $h, [System.Drawing.Imaging.PixelFormat]::Format24bppRgb)
   $g   = [System.Drawing.Graphics]::FromImage($bmp)
   try {
@@ -96,7 +125,10 @@ function Resize-Image {
       $g.DrawImage($Source, $rect, $SrcX, $SrcY, $SrcW, $SrcH,
                    [System.Drawing.GraphicsUnit]::Pixel)
     }
-  } finally { $g.Dispose() }
+  } finally {
+    $g.Dispose()
+    if ($stage) { $stage.Dispose() }
+  }
 
   return $bmp
 }
